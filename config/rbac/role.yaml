@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - hcloud.bunskin.com
+  resources:
+  - hcloudnetworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - hcloud.bunskin.com
+  resources:
+  - hcloudnetworks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - hcloud.bunskin.com
+  resources:
+  - hcloudnetworks/status
+  verbs:
+  - get
+  - patch
+  - update

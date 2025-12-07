@@ -1,0 +1,12 @@
+apiVersion: hcloud.bunskin.com/v1alpha1
+kind: HcloudNetwork
+metadata:
+  labels:
+    app.kubernetes.io/name: hcrm
+    app.kubernetes.io/managed-by: kustomize
+  name: hcloudnetwork-sample
+spec:
+  name: sample-network
+  ipRange: "10.0.0.0/16"
+  labels:
+    test-key: test-value
