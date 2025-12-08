@@ -3,9 +3,10 @@ manager:
   replicas: 1
   
   image:
-    repository: controller
-    tag: latest
+    repository: squint27/hcrm
+    tag: 0.0.1
     pullPolicy: IfNotPresent
+    pullSecrets: []
 
   # Arguments
   args:

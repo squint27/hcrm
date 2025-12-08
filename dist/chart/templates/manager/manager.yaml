@@ -82,5 +82,11 @@ spec:
               {}
               {{- end }}
             serviceAccountName: hcrm-controller-manager
+            {{- if .Values.manager.image.pullSecrets }}
+            imagePullSecrets:
+            {{- range .Values.manager.image.pullSecrets }}
+              - name: {{ . }}
+            {{- end }}
+            {{- end }}
             terminationGracePeriodSeconds: 10
             volumes: []

@@ -77,6 +77,22 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	log.V(1).Info("Reconciling HcloudNetwork", "name", hcloudNetwork.Name, "namespace", hcloudNetwork.Namespace)
 
+	// Defensive check: ensure HCloudMgr is configured to avoid nil pointer dereference
+	if r.HCloudMgr == nil {
+		err := fmt.Errorf("HCloud manager not configured: HCLOUD_TOKEN missing or manager not injected")
+		log.Error(err, "HCloudMgr is nil")
+		meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+			Type:               "Available",
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: hcloudNetwork.Generation,
+			Reason:             "NotConfigured",
+			Message:            err.Error(),
+		})
+		// best-effort status update; ignore error here to keep original error visible
+		_ = r.Status().Update(ctx, hcloudNetwork)
+		return ctrl.Result{}, err
+	}
+
 	// Handle deletion with finalizer
 	if hcloudNetwork.ObjectMeta.DeletionTimestamp != nil {
 		log.V(1).Info("HcloudNetwork resource is being deleted", "name", hcloudNetwork.Name)

@@ -67,6 +67,9 @@ type HcloudNetworkStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="NetworkId",type=integer,JSONPath=`.status.networkId`,description="Hetzner Cloud Network ID"
+// +kubebuilder:printcolumn:name="ProvisioningState",type=string,JSONPath=`.status.conditions[?(@.type=="Available")].reason`,description="Provisioning state of the network"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age of the resource"
 
 // HcloudNetwork is the Schema for the hcloudnetworks API
 type HcloudNetwork struct {

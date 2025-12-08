@@ -37,6 +37,7 @@ import (
 
 	hcloudv1alpha1 "bunskin.com/hcrm/api/v1alpha1"
 	"bunskin.com/hcrm/internal/controller"
+	"bunskin.com/hcrm/pkg/hcloud"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -178,9 +179,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize Hetzner Cloud manager from environment token (optional)
+	var hcloudMgr *hcloud.NetworkManager
+	token := os.Getenv("HCLOUD_TOKEN")
+	if token != "" {
+		setupLog.Info("initializing Hetzner Cloud client")
+		clientImpl, err := hcloud.NewClient(token)
+		if err != nil {
+			setupLog.Error(err, "unable to create Hetzner Cloud client")
+			os.Exit(1)
+		}
+		hcloudMgr = hcloud.NewNetworkManager(clientImpl)
+	} else {
+		setupLog.Info("HCLOUD_TOKEN not provided; HCloud operations will be disabled")
+	}
+
 	if err := (&controller.HcloudNetworkReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		HCloudMgr: hcloudMgr,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HcloudNetwork")
 		os.Exit(1)
