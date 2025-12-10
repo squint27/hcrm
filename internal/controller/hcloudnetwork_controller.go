@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -64,15 +63,10 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log := logf.FromContext(ctx)
 
 	// Fetch the HcloudNetwork resource
-	hcloudNetwork := &hcloudv1alpha1.HcloudNetwork{}
-	err := r.Get(ctx, req.NamespacedName, hcloudNetwork)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			log.V(1).Info("HcloudNetwork resource not found, ignoring since object must be deleted")
-			return ctrl.Result{}, nil
-		}
-		log.Error(err, "Failed to get HcloudNetwork resource")
-		return ctrl.Result{}, err
+	var hcloudNetwork hcloudv1alpha1.HcloudNetwork
+	if err := r.Get(ctx, req.NamespacedName, &hcloudNetwork); err != nil {
+		//object does not exist, nothing to do
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	log.V(1).Info("Reconciling HcloudNetwork", "name", hcloudNetwork.Name, "namespace", hcloudNetwork.Namespace)
@@ -82,7 +76,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.V(1).Info("HcloudNetwork resource is being deleted", "name", hcloudNetwork.Name)
 
 		// Check if finalizer exists
-		if controllerutil.ContainsFinalizer(hcloudNetwork, finalizerName) {
+		if controllerutil.ContainsFinalizer(&hcloudNetwork, finalizerName) {
 			// Delete the network from Hetzner Cloud if it exists
 			if hcloudNetwork.Status.NetworkId != 0 {
 				log.V(1).Info("Deleting Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
@@ -107,7 +101,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 							Reason:             "DeletionFailed",
 							Message:            fmt.Sprintf("Failed to delete network from Hetzner Cloud: %v. %v", err, response),
 						})
-						if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
+						if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
 							log.Error(updateErr, "Failed to update HcloudNetwork status")
 						}
 						return ctrl.Result{}, err
@@ -117,20 +111,21 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 
 			// Remove finalizer
-			controllerutil.RemoveFinalizer(hcloudNetwork, finalizerName)
-			if err := r.Update(ctx, hcloudNetwork); err != nil {
+			controllerutil.RemoveFinalizer(&hcloudNetwork, finalizerName)
+			if err := r.Update(ctx, &hcloudNetwork); err != nil {
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}
 			log.V(1).Info("Finalizer removed, resource deletion complete", "name", hcloudNetwork.Name)
+			//r.Record.Event(&hcloudNetwork, "Normal", "Deleted", "Successfully deleted Hetzner Cloud network")
 		}
 		return ctrl.Result{}, nil
 	}
 
 	// Add finalizer if not present
-	if !controllerutil.ContainsFinalizer(hcloudNetwork, finalizerName) {
-		controllerutil.AddFinalizer(hcloudNetwork, finalizerName)
-		if err := r.Update(ctx, hcloudNetwork); err != nil {
+	if !controllerutil.ContainsFinalizer(&hcloudNetwork, finalizerName) {
+		controllerutil.AddFinalizer(&hcloudNetwork, finalizerName)
+		if err := r.Update(ctx, &hcloudNetwork); err != nil {
 			log.Error(err, "Failed to add finalizer")
 			return ctrl.Result{}, err
 		}
@@ -152,7 +147,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				Reason:             "InvalidIPRange",
 				Message:            fmt.Sprintf("Invalid IP range: %v", err),
 			})
-			if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
+			if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
 				log.Error(updateErr, "Failed to update HcloudNetwork status")
 			}
 			return ctrl.Result{}, err
@@ -173,7 +168,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				Reason:             "CreateFailed",
 				Message:            fmt.Sprintf("Failed to create network: %v. %v", err, response),
 			})
-			if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
+			if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
 				log.Error(updateErr, "Failed to update HcloudNetwork status")
 			}
 			return ctrl.Result{}, err
@@ -189,7 +184,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Reason:             "NetworkCreated",
 			Message:            fmt.Sprintf("Hetzner Cloud network created with ID: %d", network.ID),
 		})
-		if err := r.Status().Update(ctx, hcloudNetwork); err != nil {
+		if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
 			log.Error(err, "Failed to update HcloudNetwork status after creation")
 			return ctrl.Result{}, err
 		}
@@ -208,7 +203,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				Reason:             "VerifyFailed",
 				Message:            fmt.Sprintf("Failed to verify network: %v. %v", err, response),
 			})
-			if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
+			if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
 				log.Error(updateErr, "Failed to update HcloudNetwork status")
 			}
 			return ctrl.Result{}, err
@@ -234,7 +229,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					Reason:             "UpdateFailed",
 					Message:            fmt.Sprintf("Failed to update network: %v. %v", err, response),
 				})
-				if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
+				if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
 					log.Error(updateErr, "Failed to update HcloudNetwork status")
 				}
 				return ctrl.Result{}, err
@@ -251,7 +246,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Message:            fmt.Sprintf("Hetzner Cloud network with ID %d is ready", network.ID),
 		})
 		hcloudNetwork.Status.ObservedGeneration = hcloudNetwork.Generation
-		if err := r.Status().Update(ctx, hcloudNetwork); err != nil {
+		if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
 			log.Error(err, "Failed to update HcloudNetwork status")
 			return ctrl.Result{}, err
 		}
