@@ -65,7 +65,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
 			By("creating a mock HCloud manager")
-			mockMgr := &hcloud.MockClient{}
+			mockClient := &hcloud.MockClient{}
 			createdNetwork := &hcloudgo.Network{
 				ID:   12345,
 				Name: "test-network-create",
@@ -76,17 +76,17 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Labels: map[string]string{"env": "test"},
 			}
 
-			mockMgr.CreateNetworkFunc = func(ctx context.Context, opts hcloudgo.NetworkCreateOpts) (*hcloudgo.Network, error) {
-				return createdNetwork, nil
+			mockClient.CreateNetworkFunc = func(ctx context.Context, opts hcloudgo.NetworkCreateOpts) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return createdNetwork, nil, nil
 			}
 
-			manager := hcloud.NewNetworkManager(mockMgr)
+			client := hcloud.NetworkClient(mockClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
-				Client:    k8sClient,
-				Scheme:    k8sClient.Scheme(),
-				HCloudMgr: manager,
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -134,14 +134,14 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockMgr := &hcloud.MockClient{}
-			manager := hcloud.NewNetworkManager(mockMgr)
+			mockClient := &hcloud.MockClient{}
+			client := hcloud.NetworkClient(mockClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
-				Client:    k8sClient,
-				Scheme:    k8sClient.Scheme(),
-				HCloudMgr: manager,
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -182,18 +182,18 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockMgr := &hcloud.MockClient{}
-			mockMgr.CreateNetworkFunc = func(ctx context.Context, opts hcloudgo.NetworkCreateOpts) (*hcloudgo.Network, error) {
-				return nil, fmt.Errorf("API error: rate limit exceeded")
+			mockClient := &hcloud.MockClient{}
+			mockClient.CreateNetworkFunc = func(ctx context.Context, opts hcloudgo.NetworkCreateOpts) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return nil, nil, fmt.Errorf("API error: rate limit exceeded")
 			}
 
-			manager := hcloud.NewNetworkManager(mockMgr)
+			client := hcloud.NetworkClient(mockClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
-				Client:    k8sClient,
-				Scheme:    k8sClient.Scheme(),
-				HCloudMgr: manager,
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -252,17 +252,17 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Labels: map[string]string{"version": "v1"},
 			}
 
-			mockMgr := &hcloud.MockClient{}
-			mockMgr.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, error) {
-				return existingNetwork, nil
+			mockClient := &hcloud.MockClient{}
+			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
 			}
-			mockMgr.UpdateNetworkFunc = func(ctx context.Context, id int64, opts hcloudgo.NetworkUpdateOpts) (*hcloudgo.Network, error) {
+			mockClient.UpdateNetworkFunc = func(ctx context.Context, network *hcloudgo.Network, opts hcloudgo.NetworkUpdateOpts) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				existingNetwork.Name = opts.Name
 				existingNetwork.Labels = opts.Labels
-				return existingNetwork, nil
+				return existingNetwork, nil, nil
 			}
 
-			manager := hcloud.NewNetworkManager(mockMgr)
+			client := hcloud.NetworkClient(mockClient)
 
 			By("setting network ID and finalizer")
 			resource.Status.NetworkId = 54321
@@ -282,9 +282,9 @@ var _ = Describe("HcloudNetwork Controller", func() {
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
-				Client:    k8sClient,
-				Scheme:    k8sClient.Scheme(),
-				HCloudMgr: manager,
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -331,12 +331,12 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockMgr := &hcloud.MockClient{}
-			mockMgr.DeleteNetworkFunc = func(ctx context.Context, id int64) error {
-				return nil
+			mockClient := &hcloud.MockClient{}
+			mockClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloudgo.Network) (*hcloudgo.Response, error) {
+				return nil, nil
 			}
 
-			manager := hcloud.NewNetworkManager(mockMgr)
+			client := hcloud.NetworkClient(mockClient)
 
 			By("setting network ID and finalizer")
 			resource.Status.NetworkId = 99999
@@ -352,9 +352,9 @@ var _ = Describe("HcloudNetwork Controller", func() {
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
-				Client:    k8sClient,
-				Scheme:    k8sClient.Scheme(),
-				HCloudMgr: manager,
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -389,12 +389,12 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockMgr := &hcloud.MockClient{}
-			mockMgr.DeleteNetworkFunc = func(ctx context.Context, id int64) error {
-				return fmt.Errorf("API error: network in use")
+			mockClient := &hcloud.MockClient{}
+			mockClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloudgo.Network) (*hcloudgo.Response, error) {
+				return nil, fmt.Errorf("API error: network in use")
 			}
 
-			manager := hcloud.NewNetworkManager(mockMgr)
+			client := hcloud.NetworkClient(mockClient)
 
 			By("setting network ID and finalizer")
 			resource.Status.NetworkId = 99999
@@ -410,9 +410,9 @@ var _ = Describe("HcloudNetwork Controller", func() {
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
-				Client:    k8sClient,
-				Scheme:    k8sClient.Scheme(),
-				HCloudMgr: manager,
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -462,12 +462,12 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockMgr := &hcloud.MockClient{}
-			mockMgr.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, error) {
-				return nil, fmt.Errorf("API error: network not found")
+			mockClient := &hcloud.MockClient{}
+			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return nil, nil, fmt.Errorf("API error: network not found")
 			}
 
-			manager := hcloud.NewNetworkManager(mockMgr)
+			client := hcloud.NetworkClient(mockClient)
 
 			By("setting network ID")
 			resource.Status.NetworkId = 12345
@@ -475,9 +475,9 @@ var _ = Describe("HcloudNetwork Controller", func() {
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
-				Client:    k8sClient,
-				Scheme:    k8sClient.Scheme(),
-				HCloudMgr: manager,
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{

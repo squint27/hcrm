@@ -43,8 +43,8 @@ const (
 // HcloudNetworkReconciler reconciles a HcloudNetwork object
 type HcloudNetworkReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	HCloudMgr *hcloud.NetworkManager
+	Scheme        *runtime.Scheme
+	NetworkClient hcloud.NetworkClient
 }
 
 // +kubebuilder:rbac:groups=hcloud.bunskin.com,resources=hcloudnetworks,verbs=get;list;watch;create;update;patch;delete
@@ -77,22 +77,6 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	log.V(1).Info("Reconciling HcloudNetwork", "name", hcloudNetwork.Name, "namespace", hcloudNetwork.Namespace)
 
-	// Defensive check: ensure HCloudMgr is configured to avoid nil pointer dereference
-	if r.HCloudMgr == nil {
-		err := fmt.Errorf("HCloud manager not configured: HCLOUD_TOKEN missing or manager not injected")
-		log.Error(err, "HCloudMgr is nil")
-		meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
-			Type:               "Available",
-			Status:             metav1.ConditionFalse,
-			ObservedGeneration: hcloudNetwork.Generation,
-			Reason:             "NotConfigured",
-			Message:            err.Error(),
-		})
-		// best-effort status update; ignore error here to keep original error visible
-		_ = r.Status().Update(ctx, hcloudNetwork)
-		return ctrl.Result{}, err
-	}
-
 	// Handle deletion with finalizer
 	if hcloudNetwork.ObjectMeta.DeletionTimestamp != nil {
 		log.V(1).Info("HcloudNetwork resource is being deleted", "name", hcloudNetwork.Name)
@@ -102,22 +86,34 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			// Delete the network from Hetzner Cloud if it exists
 			if hcloudNetwork.Status.NetworkId != 0 {
 				log.V(1).Info("Deleting Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
-				err := r.HCloudMgr.DeleteNetwork(ctx, int64(hcloudNetwork.Status.NetworkId))
+				network, response, err := r.NetworkClient.GetNetworkById(ctx, int64(hcloudNetwork.Status.NetworkId))
 				if err != nil {
-					log.Error(err, "Failed to delete network from Hetzner Cloud", "networkId", hcloudNetwork.Status.NetworkId)
+					log.Error(err, "Failed to get network from Hetzner Cloud", "networkId", hcloudNetwork.Status.NetworkId)
 					meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
 						Type:               "Available",
 						Status:             metav1.ConditionFalse,
 						ObservedGeneration: hcloudNetwork.Generation,
 						Reason:             "DeletionFailed",
-						Message:            fmt.Sprintf("Failed to delete network from Hetzner Cloud: %v", err),
+						Message:            fmt.Sprintf("Failed to get network for deletion: %v. %v", err, response),
 					})
-					if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
-						log.Error(updateErr, "Failed to update HcloudNetwork status")
+				} else {
+					response, err := r.NetworkClient.DeleteNetwork(ctx, network)
+					if err != nil {
+						log.Error(err, "Failed to delete network from Hetzner Cloud", "networkId", hcloudNetwork.Status.NetworkId)
+						meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+							Type:               "Available",
+							Status:             metav1.ConditionFalse,
+							ObservedGeneration: hcloudNetwork.Generation,
+							Reason:             "DeletionFailed",
+							Message:            fmt.Sprintf("Failed to delete network from Hetzner Cloud: %v. %v", err, response),
+						})
+						if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
+							log.Error(updateErr, "Failed to update HcloudNetwork status")
+						}
+						return ctrl.Result{}, err
 					}
-					return ctrl.Result{}, err
+					log.V(1).Info("Successfully deleted Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
 				}
-				log.V(1).Info("Successfully deleted Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
 			}
 
 			// Remove finalizer
@@ -163,7 +159,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		// Create network in Hetzner Cloud
-		network, err := r.HCloudMgr.CreateNetwork(ctx, hcloudgo.NetworkCreateOpts{
+		network, response, err := r.NetworkClient.CreateNetwork(ctx, hcloudgo.NetworkCreateOpts{
 			Name:    hcloudNetwork.Spec.Name,
 			IPRange: ipnet,
 			Labels:  hcloudNetwork.Spec.Labels,
@@ -175,7 +171,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				Status:             metav1.ConditionFalse,
 				ObservedGeneration: hcloudNetwork.Generation,
 				Reason:             "CreateFailed",
-				Message:            fmt.Sprintf("Failed to create network: %v", err),
+				Message:            fmt.Sprintf("Failed to create network: %v. %v", err, response),
 			})
 			if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
 				log.Error(updateErr, "Failed to update HcloudNetwork status")
@@ -202,7 +198,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// Network already exists, verify and update if needed
 		log.V(1).Info("Network already exists, verifying", "networkId", hcloudNetwork.Status.NetworkId)
 
-		network, err := r.HCloudMgr.GetNetworkById(ctx, int64(hcloudNetwork.Status.NetworkId))
+		network, response, err := r.NetworkClient.GetNetworkById(ctx, int64(hcloudNetwork.Status.NetworkId))
 		if err != nil {
 			log.Error(err, "Failed to get network from Hetzner Cloud", "networkId", hcloudNetwork.Status.NetworkId)
 			meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
@@ -210,7 +206,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				Status:             metav1.ConditionFalse,
 				ObservedGeneration: hcloudNetwork.Generation,
 				Reason:             "VerifyFailed",
-				Message:            fmt.Sprintf("Failed to verify network: %v", err),
+				Message:            fmt.Sprintf("Failed to verify network: %v. %v", err, response),
 			})
 			if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
 				log.Error(updateErr, "Failed to update HcloudNetwork status")
@@ -225,7 +221,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if needsUpdate {
 			log.V(1).Info("Updating network in Hetzner Cloud", "networkId", hcloudNetwork.Status.NetworkId)
 
-			_, err := r.HCloudMgr.UpdateNetwork(ctx, int64(hcloudNetwork.Status.NetworkId), hcloudgo.NetworkUpdateOpts{
+			_, response, err := r.NetworkClient.UpdateNetwork(ctx, network, hcloudgo.NetworkUpdateOpts{
 				Name:   hcloudNetwork.Spec.Name,
 				Labels: hcloudNetwork.Spec.Labels,
 			})
@@ -236,7 +232,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					Status:             metav1.ConditionFalse,
 					ObservedGeneration: hcloudNetwork.Generation,
 					Reason:             "UpdateFailed",
-					Message:            fmt.Sprintf("Failed to update network: %v", err),
+					Message:            fmt.Sprintf("Failed to update network: %v. %v", err, response),
 				})
 				if updateErr := r.Status().Update(ctx, hcloudNetwork); updateErr != nil {
 					log.Error(updateErr, "Failed to update HcloudNetwork status")

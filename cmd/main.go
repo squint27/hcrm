@@ -180,24 +180,24 @@ func main() {
 	}
 
 	// Initialize Hetzner Cloud manager from environment token (optional)
-	var hcloudMgr *hcloud.NetworkManager
+	var client hcloud.NetworkClient
 	token := os.Getenv("HCLOUD_TOKEN")
 	if token != "" {
 		setupLog.Info("initializing Hetzner Cloud client")
-		clientImpl, err := hcloud.NewClient(token)
+		newClient := hcloud.NewNetworkClient(token)
 		if err != nil {
 			setupLog.Error(err, "unable to create Hetzner Cloud client")
 			os.Exit(1)
 		}
-		hcloudMgr = hcloud.NewNetworkManager(clientImpl)
+		client = newClient
 	} else {
 		setupLog.Info("HCLOUD_TOKEN not provided; HCloud operations will be disabled")
 	}
 
 	if err := (&controller.HcloudNetworkReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		HCloudMgr: hcloudMgr,
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		NetworkClient: client,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HcloudNetwork")
 		os.Exit(1)
