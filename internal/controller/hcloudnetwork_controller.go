@@ -132,8 +132,22 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.V(1).Info("Finalizer added", "name", hcloudNetwork.Name)
 	}
 
+	// Check if the resource exists in Hetzner Cloud
+	existingNetwork, _, err := r.NetworkClient.GetNetworkByName(ctx, hcloudNetwork.Spec.Name)
+	log.V(1).Info("Checked for existing Hetzner Cloud network", "name", hcloudNetwork.Spec.Name, "network", existingNetwork)
+	if err != nil {
+		log.Error(err, "Failed to get network from Hetzner Cloud", "name", hcloudNetwork.Spec.Name)
+		meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+			Type:               "Available",
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: hcloudNetwork.Generation,
+			Reason:             "FetchFailed",
+			Message:            fmt.Sprintf("Failed to fetch network: %v", err),
+		})
+	}
+
 	// Check if the resource has a network ID (already created)
-	if hcloudNetwork.Status.NetworkId == 0 {
+	if hcloudNetwork.Status.NetworkId == 0 && existingNetwork == nil {
 		log.V(1).Info("Creating new Hetzner Cloud network", "name", hcloudNetwork.Spec.Name)
 
 		// Parse IP range
@@ -190,8 +204,14 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		log.V(1).Info("Successfully created Hetzner Cloud network", "networkId", network.ID)
 	} else {
+		// Set the Status.NetworkId if it was found by name
+		if existingNetwork != nil {
+			log.V(1).Info("Existing network found networkId", "networkId", existingNetwork.ID)
+			hcloudNetwork.Status.NetworkId = int(existingNetwork.ID)
+		}
+
 		// Network already exists, verify and update if needed
-		log.V(1).Info("Network already exists, verifying", "networkId", hcloudNetwork.Status.NetworkId)
+		log.V(1).Info("Updating network resource", "networkId", hcloudNetwork.Status.NetworkId)
 
 		network, response, err := r.NetworkClient.GetNetworkById(ctx, int64(hcloudNetwork.Status.NetworkId))
 		if err != nil {

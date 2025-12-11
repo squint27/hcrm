@@ -497,4 +497,90 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
 		})
 	})
+
+	Context("Adopt existing HcloudNetwork", func() {
+		const namespace = "default"
+
+		ctx := context.Background()
+
+		It("should successfully update a network in Hetzner Cloud", func() {
+			const resourceName = "test-adopt-network"
+			typeNamespacedName := types.NamespacedName{
+				Name:      resourceName,
+				Namespace: namespace,
+			}
+
+			By("creating the HcloudNetwork resource")
+			resource := &hcloudv1alpha1.HcloudNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName,
+					Namespace: namespace,
+				},
+				Spec: hcloudv1alpha1.HcloudNetworkSpec{
+					Name:    resourceName,
+					IpRange: "10.0.0.0/8",
+					Labels: map[string]string{
+						"env": "test",
+					},
+				},
+				Status: hcloudv1alpha1.HcloudNetworkStatus{
+					NetworkId: 23456,
+				},
+			}
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+
+			By("creating a mock HCloud manager")
+			mockClient := &hcloud.MockClient{}
+			_, ipRange, _ := net.ParseCIDR("10.0.0.0/8")
+			existingNetwork := &hcloudgo.Network{
+				ID:      12345,
+				Name:    resourceName,
+				IPRange: ipRange,
+				Labels:  map[string]string{"env": "test"},
+			}
+
+			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+			mockClient.UpdateNetworkFunc = func(ctx context.Context, network *hcloudgo.Network, opts hcloudgo.NetworkUpdateOpts) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+
+			client := hcloud.NetworkClient(mockClient)
+
+			By("reconciling the resource")
+			reconciler := &HcloudNetworkReconciler{
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
+			}
+
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying the resource status was updated")
+			updatedResource := &hcloudv1alpha1.HcloudNetwork{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
+			Expect(updatedResource.Status.NetworkId).To(Equal(12345))
+			Expect(updatedResource.Status.ObservedGeneration).To(Equal(updatedResource.Generation))
+
+			By("verifying the Available condition was set")
+			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
+			Expect(condition).NotTo(BeNil())
+			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+			Expect(condition.Reason).To(Equal("NetworkReady"))
+
+			By("verifying finalizer was added")
+			Expect(updatedResource.ObjectMeta.Finalizers).To(ContainElement(finalizerName))
+
+			By("cleaning up the resource")
+			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
+		})
+	})
+
 })
