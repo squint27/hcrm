@@ -10,7 +10,7 @@ import (
 type MockClient struct {
 	GetNetworkByIdFunc   func(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error)
 	GetNetworkByNameFunc func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error)
-	CreateNetworkFunc    func(ctx context.Context, opts hcloud.NetworkCreateOpts) (*hcloud.Network, *hcloud.Response, error)
+	CreateNetworkFunc    func(ctx context.Context, name string, ipRange string) (*hcloud.Network, *hcloud.Response, error)
 	UpdateNetworkFunc    func(ctx context.Context, network *hcloud.Network, opts hcloud.NetworkUpdateOpts) (*hcloud.Network, *hcloud.Response, error)
 	DeleteNetworkFunc    func(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error)
 	ListNetworksFunc     func(ctx context.Context) ([]*hcloud.Network, error)
@@ -33,9 +33,9 @@ func (m *MockClient) GetNetworkByName(ctx context.Context, name string) (*hcloud
 }
 
 // CreateNetwork calls the mocked CreateNetworkFunc
-func (m *MockClient) CreateNetwork(ctx context.Context, opts hcloud.NetworkCreateOpts) (*hcloud.Network, *hcloud.Response, error) {
+func (m *MockClient) CreateNetwork(ctx context.Context, name string, ipRange string) (*hcloud.Network, *hcloud.Response, error) {
 	if m.CreateNetworkFunc != nil {
-		return m.CreateNetworkFunc(ctx, opts)
+		return m.CreateNetworkFunc(ctx, name, ipRange)
 	}
 	return nil, nil, nil
 }

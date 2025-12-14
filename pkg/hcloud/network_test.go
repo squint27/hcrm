@@ -53,31 +53,29 @@ var _ = Describe("NetworkManager", func() {
 	Describe("CreateNetwork", func() {
 		When("valid network options are provided", func() {
 			BeforeEach(func() {
-				mockClient.CreateNetworkFunc = func(ctx context.Context, opts hcloud.NetworkCreateOpts) (*hcloud.Network, *hcloud.Response, error) {
-					return &hcloud.Network{ID: 1, Name: opts.Name}, nil, nil
+				mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string) (*hcloud.Network, *hcloud.Response, error) {
+					return &hcloud.Network{ID: 1, Name: "created-network"}, nil, nil
 				}
 			})
 
 			It("should create a network", func() {
-				opts := hcloud.NetworkCreateOpts{Name: "test-network"}
-				network, _, err := nc.CreateNetwork(context.Background(), opts)
+				network, _, err := nc.CreateNetwork(context.Background(), "created-network", "192.168.0.0/24")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(network).NotTo(BeNil())
 				Expect(network.ID).To(Equal(int64(1)))
-				Expect(network.Name).To(Equal("test-network"))
+				Expect(network.Name).To(Equal("created-network"))
 			})
 		})
 
 		When("API returns an error", func() {
 			BeforeEach(func() {
-				mockClient.CreateNetworkFunc = func(ctx context.Context, opts hcloud.NetworkCreateOpts) (*hcloud.Network, *hcloud.Response, error) {
+				mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string) (*hcloud.Network, *hcloud.Response, error) {
 					return nil, nil, errors.New("api error")
 				}
 			})
 
 			It("should propagate the error", func() {
-				opts := hcloud.NetworkCreateOpts{Name: "test-network"}
-				_, _, err := nc.CreateNetwork(context.Background(), opts)
+				_, _, err := nc.CreateNetwork(context.Background(), "created-network", "192.168.0.0/24")
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("api error"))
 			})

@@ -35,6 +35,8 @@ import (
 const (
 	// finalizerName is the name of the finalizer for HcloudNetwork resources
 	finalizerName = "hcloud.bunskin.com/finalizer"
+	// syncPolicy is the annotation key for the sync policy
+	syncPolicy = "hcloud.bunskin.com/sync-policy"
 )
 
 // HcloudNetworkReconciler reconciles a HcloudNetwork object
@@ -48,17 +50,8 @@ type HcloudNetworkReconciler struct {
 // +kubebuilder:rbac:groups=hcloud.bunskin.com,resources=hcloudnetworks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=hcloud.bunskin.com,resources=hcloudnetworks/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// It reconciles HcloudNetwork CRD resources by:
-// 1. Fetching the HcloudNetwork resource from the cluster
-// 2. Creating, updating, or deleting Hetzner Cloud networks as needed
-// 3. Updating the resource status with the network ID and conditions
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.4/pkg/reconcile
 func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
+	log := logf.Log.WithName("hcloudnetwork-controller")
 
 	// Fetch the HcloudNetwork resource
 	var hcloudNetwork hcloudv1alpha1.HcloudNetwork
@@ -67,17 +60,17 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	log.V(1).Info("Reconciling HcloudNetwork", "name", hcloudNetwork.Name, "namespace", hcloudNetwork.Namespace)
+	log.Info("Reconciling HcloudNetwork", "name", hcloudNetwork.Name, "namespace", hcloudNetwork.Namespace)
 
 	// Handle deletion with finalizer
 	if hcloudNetwork.DeletionTimestamp != nil {
-		log.V(1).Info("HcloudNetwork resource is being deleted", "name", hcloudNetwork.Name)
+		log.Info("HcloudNetwork resource is being deleted", "name", hcloudNetwork.Name)
 
 		// Check if finalizer exists
 		if controllerutil.ContainsFinalizer(&hcloudNetwork, finalizerName) {
 			// Delete the network from Hetzner Cloud if it exists
 			if hcloudNetwork.Status.NetworkId != 0 {
-				log.V(1).Info("Fetching Hetzner Cloud network for deletion", "networkId", hcloudNetwork.Status.NetworkId)
+				log.Info("Fetching Hetzner Cloud network for deletion", "networkId", hcloudNetwork.Status.NetworkId)
 				network, response, err := r.NetworkClient.GetNetworkById(ctx, int64(hcloudNetwork.Status.NetworkId))
 				if err != nil {
 					log.Error(err, "Failed to get network from Hetzner Cloud", "networkId", hcloudNetwork.Status.NetworkId)
@@ -97,7 +90,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 				if network != nil {
 					// Delete the network
-					log.V(1).Info("Deleting Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
+					log.Info("Deleting Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
 					response, err := r.NetworkClient.DeleteNetwork(ctx, network)
 					if err != nil {
 						log.Error(err, "Failed to delete network from Hetzner Cloud", "networkId", hcloudNetwork.Status.NetworkId)
@@ -114,9 +107,9 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						return ctrl.Result{}, err
 					}
 
-					log.V(1).Info("Successfully deleted Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
+					log.Info("Successfully deleted Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
 				} else {
-					log.V(1).Info("Network not found in Hetzner Cloud, nothing to delete", "networkId", hcloudNetwork.Status.NetworkId)
+					log.Info("Network not found in Hetzner Cloud, nothing to delete", "networkId", hcloudNetwork.Status.NetworkId)
 				}
 			}
 
@@ -126,7 +119,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				log.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}
-			log.V(1).Info("Finalizer removed, resource deletion complete", "name", hcloudNetwork.Name)
+			log.Info("Finalizer removed, resource deletion complete", "name", hcloudNetwork.Name)
 		}
 		return ctrl.Result{}, nil
 	}
@@ -138,11 +131,28 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Failed to add finalizer")
 			return ctrl.Result{}, err
 		}
-		log.V(1).Info("Finalizer added", "name", hcloudNetwork.Name)
+		log.Info("Finalizer added", "name", hcloudNetwork.Name)
+	}
+
+	// Initialize annotations if not present
+	if hcloudNetwork.Annotations == nil {
+		hcloudNetwork.Annotations = make(map[string]string)
+	}
+
+	// Add sync policy annotation if not present
+	if hcloudNetwork.Annotations[syncPolicy] == "" {
+		log.Info("Adding sync policy annotation", "name", hcloudNetwork.Name)
+		hcloudNetwork.Annotations[syncPolicy] = "manage"
+		if err := r.Update(ctx, &hcloudNetwork); err != nil {
+			log.Error(err, "Failed to add sync policy annotation")
+			return ctrl.Result{}, err
+		}
+		log.Info("Sync policy annotation added", "name", hcloudNetwork.Name)
+
 	}
 
 	// Adopt existing network if it exists
-	log.V(1).Info("Checking for existing network in Hetzner Cloud by name", "name", hcloudNetwork.Spec.Name)
+	log.Info("Checking for existing network in Hetzner Cloud by name", "name", hcloudNetwork.Spec.Name)
 	network, response, err := r.NetworkClient.GetNetworkByName(ctx, hcloudNetwork.Spec.Name)
 	if err != nil {
 		log.Error(err, "Failed to get network from Hetzner Cloud by name", "name", hcloudNetwork.Spec.Name)
@@ -160,7 +170,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if network != nil {
-		log.V(1).Info("Found existing network in Hetzner Cloud", "networkId", network.ID)
+		log.Info("Found existing network in Hetzner Cloud", "networkId", network.ID)
 
 		// Update the resource status with the network ID and conditions
 		hcloudNetwork.Status.NetworkId = int(network.ID)
@@ -176,9 +186,44 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Failed to update HcloudNetwork status")
 			return ctrl.Result{}, err
 		}
+	} else {
+		log.Info("Network not found in Hetzner Cloud, creating new network", "name", hcloudNetwork.Spec.Name)
+
+		network, response, err := r.NetworkClient.CreateNetwork(ctx, hcloudNetwork.Spec.Name, hcloudNetwork.Spec.IpRange)
+		if err != nil {
+			log.Error(err, "Failed to create network in Hetzner Cloud", "name", hcloudNetwork.Spec.Name)
+			meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+				Type:               "Available",
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: hcloudNetwork.Generation,
+				Reason:             "CreateNetworkFailed",
+				Message:            fmt.Sprintf("Failed to create network in Hetzner Cloud: %v. %v", err, response),
+			})
+			if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
+				log.Error(updateErr, "Failed to update HcloudNetwork status")
+			}
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Successfully created network in Hetzner Cloud", "networkId", network.ID)
+
+		hcloudNetwork.Status.NetworkId = int(network.ID)
+		meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+			Type:               "Available",
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: hcloudNetwork.Generation,
+			Reason:             "NetworkCreated",
+			Message:            fmt.Sprintf("Network created in Hetzner Cloud with ID: %d", network.ID),
+		})
+		hcloudNetwork.Status.ObservedGeneration = hcloudNetwork.Generation
+		if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
+			log.Error(err, "Failed to update HcloudNetwork status")
+		}
+
+		return ctrl.Result{}, err
 	}
 
-	log.V(1).Info("HcloudNetwork resource reconciled successfully", "name", hcloudNetwork.Name)
+	log.Info("HcloudNetwork resource reconciled successfully", "name", hcloudNetwork.Name)
 	return ctrl.Result{}, nil
 }
 

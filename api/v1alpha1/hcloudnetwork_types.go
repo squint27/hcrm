@@ -31,8 +31,10 @@ type HcloudNetworkSpec struct {
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
 	// +required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Field name is immutable"
 	Name string `json:"name"`
 	// +required
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}\/([0-9]{1,2})$`
 	IpRange string `json:"ipRange"`
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`

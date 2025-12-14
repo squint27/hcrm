@@ -2,6 +2,7 @@ package hcloud
 
 import (
 	"context"
+	"net"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
@@ -11,7 +12,7 @@ type NetworkClient interface {
 	// Network operations
 	GetNetworkById(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error)
 	GetNetworkByName(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error)
-	CreateNetwork(ctx context.Context, opts hcloud.NetworkCreateOpts) (*hcloud.Network, *hcloud.Response, error)
+	CreateNetwork(ctx context.Context, name string, ipRange string) (*hcloud.Network, *hcloud.Response, error)
 	UpdateNetwork(ctx context.Context, network *hcloud.Network, opts hcloud.NetworkUpdateOpts) (*hcloud.Network, *hcloud.Response, error)
 	DeleteNetwork(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error)
 	ListNetworks(ctx context.Context) ([]*hcloud.Network, error)
@@ -40,7 +41,15 @@ func (a *hcloudNetworkAdapter) GetNetworkByName(ctx context.Context, name string
 }
 
 // CreateNetwork creates a new network with the given options
-func (a *hcloudNetworkAdapter) CreateNetwork(ctx context.Context, opts hcloud.NetworkCreateOpts) (*hcloud.Network, *hcloud.Response, error) {
+func (a *hcloudNetworkAdapter) CreateNetwork(ctx context.Context, name string, ipRange string) (*hcloud.Network, *hcloud.Response, error) {
+	_, cidr, err := net.ParseCIDR(ipRange)
+	if err != nil {
+		return nil, nil, err
+	}
+	opts := hcloud.NetworkCreateOpts{
+		Name:    name,
+		IPRange: cidr,
+	}
 	return a.client.Network.Create(ctx, opts)
 }
 
