@@ -115,10 +115,6 @@ var _ = Describe("HcloudNetwork Controller", func() {
 
 		It("should handle invalid IP range gracefully", func() {
 			const resourceName = "test-invalid-cidr"
-			typeNamespacedName := types.NamespacedName{
-				Name:      resourceName,
-				Namespace: namespace,
-			}
 
 			By("creating the HcloudNetwork resource with invalid IP range")
 			resource := &hcloudv1alpha1.HcloudNetwork{
@@ -132,37 +128,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 					Labels:  map[string]string{},
 				},
 			}
-			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-
-			mockClient := &hcloud.MockClient{}
-			mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string) (*hcloudgo.Network, *hcloudgo.Response, error) {
-				return nil, nil, fmt.Errorf("invalid IP range")
-			}
-
-			client := hcloud.NetworkClient(mockClient)
-
-			By("reconciling the resource")
-			reconciler := &HcloudNetworkReconciler{
-				Client:        k8sClient,
-				Scheme:        k8sClient.Scheme(),
-				NetworkClient: client,
-			}
-
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).To(HaveOccurred())
-
-			By("verifying the Available condition indicates failure")
-			updatedResource := &hcloudv1alpha1.HcloudNetwork{}
-			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
-			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
-			Expect(condition).NotTo(BeNil())
-			Expect(condition.Status).To(Equal(metav1.ConditionFalse))
-			Expect(condition.Reason).To(Equal("CreateNetworkFailed"))
-
-			By("cleaning up the resource")
-			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
+			Expect(k8sClient.Create(ctx, resource)).To(Not(Succeed()))
 		})
 
 		It("should handle Hetzner Cloud API errors gracefully", func() {

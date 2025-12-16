@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	hcloudv1alpha1 "bunskin.com/hcrm/api/v1alpha1"
 	"bunskin.com/hcrm/pkg/hcloud"
@@ -60,6 +62,17 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	originalStatus := hcloudNetwork.Status.DeepCopy()
+
+	defer func() {
+		// Update status if it has changed
+		if !equality.Semantic.DeepEqual(originalStatus, &hcloudNetwork.Status) {
+			if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
+				log.Error(err, "Failed to update HcloudNetwork status in deferred function", "name", hcloudNetwork.Name)
+			}
+		}
+	}()
+
 	log.Info("Reconciling HcloudNetwork", "name", hcloudNetwork.Name, "namespace", hcloudNetwork.Namespace)
 
 	// Handle deletion with finalizer
@@ -81,9 +94,6 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						Reason:             "DeletionFailed",
 						Message:            fmt.Sprintf("Failed to get network for deletion: %v. %v", err, response),
 					})
-					if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
-						log.Error(updateErr, "Failed to update HcloudNetwork status")
-					}
 
 					return ctrl.Result{}, err
 				}
@@ -101,9 +111,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 							Reason:             "DeletionFailed",
 							Message:            fmt.Sprintf("Failed to delete network from Hetzner Cloud: %v. %v", err, response),
 						})
-						if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
-							log.Error(updateErr, "Failed to update HcloudNetwork status")
-						}
+
 						return ctrl.Result{}, err
 					}
 
@@ -116,7 +124,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			// Remove finalizer
 			controllerutil.RemoveFinalizer(&hcloudNetwork, finalizerName)
 			if err := r.Update(ctx, &hcloudNetwork); err != nil {
-				log.Error(err, "Failed to remove finalizer")
+				log.Error(err, "Failed to remove finalizer", "name", hcloudNetwork.Name)
 				return ctrl.Result{}, err
 			}
 			log.Info("Finalizer removed, resource deletion complete", "name", hcloudNetwork.Name)
@@ -128,9 +136,10 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if !controllerutil.ContainsFinalizer(&hcloudNetwork, finalizerName) {
 		controllerutil.AddFinalizer(&hcloudNetwork, finalizerName)
 		if err := r.Update(ctx, &hcloudNetwork); err != nil {
-			log.Error(err, "Failed to add finalizer")
+			log.Error(err, "Failed to add finalizer", "name", hcloudNetwork.Name)
 			return ctrl.Result{}, err
 		}
+
 		log.Info("Finalizer added", "name", hcloudNetwork.Name)
 	}
 
@@ -144,9 +153,10 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Info("Adding sync policy annotation", "name", hcloudNetwork.Name)
 		hcloudNetwork.Annotations[syncPolicy] = "manage"
 		if err := r.Update(ctx, &hcloudNetwork); err != nil {
-			log.Error(err, "Failed to add sync policy annotation")
+			log.Error(err, "Failed to add sync policy annotation", "name", hcloudNetwork.Name)
 			return ctrl.Result{}, err
 		}
+
 		log.Info("Sync policy annotation added", "name", hcloudNetwork.Name)
 
 	}
@@ -163,9 +173,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Reason:             "GetNetworkFailed",
 			Message:            fmt.Sprintf("Failed to get network from Hetzner Cloud by name: %v. %v", err, response),
 		})
-		if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
-			log.Error(updateErr, "Failed to update HcloudNetwork status")
-		}
+
 		return ctrl.Result{}, err
 	}
 
@@ -182,10 +190,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Message:            fmt.Sprintf("Network found in Hetzner Cloud with ID: %d", network.ID),
 		})
 		hcloudNetwork.Status.ObservedGeneration = hcloudNetwork.Generation
-		if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
-			log.Error(err, "Failed to update HcloudNetwork status")
-			return ctrl.Result{}, err
-		}
+
 	} else {
 		log.Info("Network not found in Hetzner Cloud, creating new network", "name", hcloudNetwork.Spec.Name)
 
@@ -199,9 +204,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				Reason:             "CreateNetworkFailed",
 				Message:            fmt.Sprintf("Failed to create network in Hetzner Cloud: %v. %v", err, response),
 			})
-			if updateErr := r.Status().Update(ctx, &hcloudNetwork); updateErr != nil {
-				log.Error(updateErr, "Failed to update HcloudNetwork status")
-			}
+
 			return ctrl.Result{}, err
 		}
 
@@ -216,11 +219,6 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Message:            fmt.Sprintf("Network created in Hetzner Cloud with ID: %d", network.ID),
 		})
 		hcloudNetwork.Status.ObservedGeneration = hcloudNetwork.Generation
-		if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
-			log.Error(err, "Failed to update HcloudNetwork status")
-		}
-
-		return ctrl.Result{}, err
 	}
 
 	log.Info("HcloudNetwork resource reconciled successfully", "name", hcloudNetwork.Name)
@@ -232,5 +230,6 @@ func (r *HcloudNetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&hcloudv1alpha1.HcloudNetwork{}).
 		Named("hcloudnetwork").
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
