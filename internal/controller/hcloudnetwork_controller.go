@@ -68,7 +68,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// Update status if it has changed
 		if !equality.Semantic.DeepEqual(originalStatus, &hcloudNetwork.Status) {
 			if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
-				log.Error(err, "Failed to update HcloudNetwork status in deferred function", "name", hcloudNetwork.Name)
+				log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 			}
 		}
 	}()
@@ -180,6 +180,51 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if network != nil {
 		log.Info("Found existing network in Hetzner Cloud", "networkId", network.ID)
 
+		// Evaluate if the network spec matches the existing network
+		needsLabelsUpdate := false
+		needsCidrUpdate := false
+		if hcloudNetwork.Spec.IpRange != network.IPRange.String() {
+			log.Info("Network IP range differs, updating", "current", network.IPRange, "desired", hcloudNetwork.Spec.IpRange)
+			needsCidrUpdate = true
+		} else if hcloudNetwork.Spec.Labels != nil && !equality.Semantic.DeepEqual(hcloudNetwork.Spec.Labels, network.Labels) {
+			log.Info("Network labels differ, updating", "current", network.Labels, "desired", hcloudNetwork.Spec.Labels)
+			needsLabelsUpdate = true
+		}
+
+		if needsLabelsUpdate {
+			_, response, err := r.NetworkClient.UpdateNetworkLabels(ctx, network, hcloudNetwork.Spec.Labels)
+			if err != nil {
+				log.Error(err, "Failed to update network labels in Hetzner Cloud", "networkId", network.ID)
+				meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+					Type:               "Available",
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: hcloudNetwork.Generation,
+					Reason:             "UpdateNetworkFailed",
+					Message:            fmt.Sprintf("Failed to update network in Hetzner Cloud: %v. %v", err, response),
+				})
+
+				return ctrl.Result{}, err
+			}
+		} else if needsCidrUpdate {
+			_, response, err = r.NetworkClient.UpdateNetworkCidr(ctx, network, hcloudNetwork.Spec.IpRange)
+			if err != nil {
+				log.Error(err, "Failed to update network CIDR in Hetzner Cloud", "networkId", network.ID)
+				meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+					Type:               "Available",
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: hcloudNetwork.Generation,
+					Reason:             "UpdateNetworkFailed",
+					Message:            fmt.Sprintf("Failed to update network in Hetzner Cloud: %v. %v", err, response),
+				})
+
+				return ctrl.Result{}, err
+			}
+
+			log.Info("Successfully updated network in Hetzner Cloud", "networkId", network.ID)
+		} else {
+			log.Info("No updates required for existing network", "networkId", network.ID)
+		}
+
 		// Update the resource status with the network ID and conditions
 		hcloudNetwork.Status.NetworkId = int(network.ID)
 		meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
@@ -187,14 +232,14 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: hcloudNetwork.Generation,
 			Reason:             "NetworkReady",
-			Message:            fmt.Sprintf("Network found in Hetzner Cloud with ID: %d", network.ID),
+			Message:            fmt.Sprintf("Network ID %d updated successfully", network.ID),
 		})
 		hcloudNetwork.Status.ObservedGeneration = hcloudNetwork.Generation
 
 	} else {
 		log.Info("Network not found in Hetzner Cloud, creating new network", "name", hcloudNetwork.Spec.Name)
 
-		network, response, err := r.NetworkClient.CreateNetwork(ctx, hcloudNetwork.Spec.Name, hcloudNetwork.Spec.IpRange)
+		network, response, err := r.NetworkClient.CreateNetwork(ctx, hcloudNetwork.Spec.Name, hcloudNetwork.Spec.IpRange, hcloudNetwork.Spec.Labels)
 		if err != nil {
 			log.Error(err, "Failed to create network in Hetzner Cloud", "name", hcloudNetwork.Spec.Name)
 			meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{

@@ -76,7 +76,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Labels: map[string]string{"env": "test"},
 			}
 
-			mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return createdNetwork, nil, nil
 			}
 
@@ -153,7 +153,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
 			mockClient := &hcloud.MockClient{}
-			mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return nil, nil, fmt.Errorf("API error: rate limit exceeded")
 			}
 
@@ -184,96 +184,218 @@ var _ = Describe("HcloudNetwork Controller", func() {
 		})
 	})
 
-	// Context("Update existing HcloudNetwork", func() {
-	// 	const namespace = "default"
+	Context("Update existing HcloudNetwork", func() {
+		const namespace = "default"
 
-	// 	ctx := context.Background()
+		ctx := context.Background()
 
-	// 	It("should successfully update network name and labels", func() {
-	// 		const resourceName = "test-update-network"
-	// 		typeNamespacedName := types.NamespacedName{
-	// 			Name:      resourceName,
-	// 			Namespace: namespace,
-	// 		}
+		It("should successfully update network labels", func() {
+			const resourceName = "test-update-labels-network"
+			typeNamespacedName := types.NamespacedName{
+				Name:      resourceName,
+				Namespace: namespace,
+			}
 
-	// 		By("creating the HcloudNetwork resource")
-	// 		resource := &hcloudv1alpha1.HcloudNetwork{
-	// 			ObjectMeta: metav1.ObjectMeta{
-	// 				Name:      resourceName,
-	// 				Namespace: namespace,
-	// 			},
-	// 			Spec: hcloudv1alpha1.HcloudNetworkSpec{
-	// 				Name:    "test-network-v1",
-	// 				IpRange: "10.0.0.0/8",
-	// 				Labels: map[string]string{
-	// 					"version": "v1",
-	// 				},
-	// 			},
-	// 		}
-	// 		Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+			By("creating the HcloudNetwork resource")
+			resource := &hcloudv1alpha1.HcloudNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName,
+					Namespace: namespace,
+				},
+				Spec: hcloudv1alpha1.HcloudNetworkSpec{
+					Name:    resourceName,
+					IpRange: "10.0.0.0/8",
+					Labels: map[string]string{
+						"oldKey": "oldVal",
+						"newKey": "newVal",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-	// 		existingNetwork := &hcloudgo.Network{
-	// 			ID:   54321,
-	// 			Name: "test-network-v1",
-	// 			IPRange: &net.IPNet{
-	// 				IP:   net.IPv4(10, 0, 0, 0),
-	// 				Mask: net.IPv4Mask(255, 0, 0, 0),
-	// 			},
-	// 			Labels: map[string]string{"version": "v1"},
-	// 		}
+			existingNetwork := &hcloudgo.Network{
+				ID:   54321,
+				Name: resourceName,
+				IPRange: &net.IPNet{
+					IP:   net.IPv4(10, 0, 0, 0),
+					Mask: net.IPv4Mask(255, 0, 0, 0),
+				},
+				Labels: map[string]string{"oldKey": "oldVal"},
+			}
 
-	// 		mockClient := &hcloud.MockClient{}
-	// 		mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
-	// 			return existingNetwork, nil, nil
-	// 		}
-	// 		mockClient.UpdateNetworkFunc = func(ctx context.Context, network *hcloudgo.Network, opts hcloudgo.NetworkUpdateOpts) (*hcloudgo.Network, *hcloudgo.Response, error) {
-	// 			existingNetwork.Name = opts.Name
-	// 			existingNetwork.Labels = opts.Labels
-	// 			return existingNetwork, nil, nil
-	// 		}
+			mockClient := &hcloud.MockClient{}
+			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+			mockClient.UpdateNetworkLabelsFunc = func(ctx context.Context, network *hcloudgo.Network, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				existingNetwork.Labels = labels
+				return existingNetwork, nil, nil
+			}
 
-	// 		client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(mockClient)
 
-	// 		By("setting network ID and finalizer")
-	// 		resource.Status.NetworkId = 54321
-	// 		Expect(k8sClient.Status().Update(ctx, resource)).To(Succeed())
+			By("reconciling the resource")
+			reconciler := &HcloudNetworkReconciler{
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
+			}
 
-	// 		getResource := &hcloudv1alpha1.HcloudNetwork{}
-	// 		Expect(k8sClient.Get(ctx, typeNamespacedName, getResource)).To(Succeed())
-	// 		getResource.ObjectMeta.Finalizers = []string{finalizerName}
-	// 		Expect(k8sClient.Update(ctx, getResource)).To(Succeed())
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
 
-	// 		By("updating the resource spec")
-	// 		updatedResource := &hcloudv1alpha1.HcloudNetwork{}
-	// 		Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
-	// 		updatedResource.Spec.Name = "test-network-v2"
-	// 		updatedResource.Spec.Labels = map[string]string{"version": "v2"}
-	// 		Expect(k8sClient.Update(ctx, updatedResource)).To(Succeed())
+			By("verifying the Available condition is still true")
+			finalResource := &hcloudv1alpha1.HcloudNetwork{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, finalResource)).To(Succeed())
+			condition := meta.FindStatusCondition(finalResource.Status.Conditions, "Available")
+			Expect(condition).NotTo(BeNil())
+			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+			Expect(condition.Reason).To(Equal("NetworkReady"))
 
-	// 		By("reconciling the resource")
-	// 		reconciler := &HcloudNetworkReconciler{
-	// 			Client:        k8sClient,
-	// 			Scheme:        k8sClient.Scheme(),
-	// 			NetworkClient: client,
-	// 		}
+			By("cleaning up the resource")
+			Expect(k8sClient.Delete(ctx, finalResource)).To(Succeed())
+		})
 
-	// 		_, err := reconciler.Reconcile(ctx, reconcile.Request{
-	// 			NamespacedName: typeNamespacedName,
-	// 		})
-	// 		Expect(err).NotTo(HaveOccurred())
+		It("should successfully update network cidr", func() {
+			const resourceName = "test-update-cidr-network"
+			typeNamespacedName := types.NamespacedName{
+				Name:      resourceName,
+				Namespace: namespace,
+			}
 
-	// 		By("verifying the Available condition is still true")
-	// 		finalResource := &hcloudv1alpha1.HcloudNetwork{}
-	// 		Expect(k8sClient.Get(ctx, typeNamespacedName, finalResource)).To(Succeed())
-	// 		condition := meta.FindStatusCondition(finalResource.Status.Conditions, "Available")
-	// 		Expect(condition).NotTo(BeNil())
-	// 		Expect(condition.Status).To(Equal(metav1.ConditionTrue))
-	// 		Expect(condition.Reason).To(Equal("NetworkReady"))
+			By("creating the HcloudNetwork resource")
+			resource := &hcloudv1alpha1.HcloudNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName,
+					Namespace: namespace,
+				},
+				Spec: hcloudv1alpha1.HcloudNetworkSpec{
+					Name:    resourceName,
+					IpRange: "10.0.0.0/8",
+					Labels: map[string]string{
+						"oldKey": "oldVal",
+						"newKey": "newVal",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-	// 		By("cleaning up the resource")
-	// 		Expect(k8sClient.Delete(ctx, finalResource)).To(Succeed())
-	// 	})
-	// })
+			_, existingCidr, _ := net.ParseCIDR("10.0.0.0/16")
+			_, newCidr, _ := net.ParseCIDR("10.0.0.0/8")
+			existingNetwork := &hcloudgo.Network{
+				ID:      54321,
+				Name:    resourceName,
+				IPRange: existingCidr,
+			}
+
+			mockClient := &hcloud.MockClient{}
+			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+			mockClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloudgo.Network, cidr string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				existingNetwork.IPRange = newCidr
+				return existingNetwork, nil, nil
+			}
+
+			client := hcloud.NetworkClient(mockClient)
+
+			By("reconciling the resource")
+			reconciler := &HcloudNetworkReconciler{
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
+			}
+
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying the Available condition is still true")
+			finalResource := &hcloudv1alpha1.HcloudNetwork{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, finalResource)).To(Succeed())
+			condition := meta.FindStatusCondition(finalResource.Status.Conditions, "Available")
+			Expect(condition).NotTo(BeNil())
+			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+			Expect(condition.Reason).To(Equal("NetworkReady"))
+
+			By("cleaning up the resource")
+			Expect(k8sClient.Delete(ctx, finalResource)).To(Succeed())
+		})
+
+		It("should handle Hetzner Cloud API errors gracefully", func() {
+			const resourceName = "test-cidr-error"
+			typeNamespacedName := types.NamespacedName{
+				Name:      resourceName,
+				Namespace: namespace,
+			}
+
+			By("creating the HcloudNetwork resource")
+			resource := &hcloudv1alpha1.HcloudNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName,
+					Namespace: namespace,
+				},
+				Spec: hcloudv1alpha1.HcloudNetworkSpec{
+					Name:    "test-cidr-error",
+					IpRange: "10.0.0.0/16",
+					Labels:  map[string]string{},
+				},
+			}
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+
+			_, existingCidr, _ := net.ParseCIDR("10.0.0.0/8")
+			existingNetwork := &hcloudgo.Network{
+				ID:      54321,
+				Name:    resourceName,
+				IPRange: existingCidr,
+			}
+
+			mockClient := &hcloud.MockClient{}
+			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return existingNetwork, nil, nil
+			}
+			mockClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloudgo.Network, cidr string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return nil, nil, fmt.Errorf("API error: cannot update network CIDR")
+			}
+
+			client := hcloud.NetworkClient(mockClient)
+
+			By("reconciling the resource")
+			reconciler := &HcloudNetworkReconciler{
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
+			}
+
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).To(HaveOccurred())
+
+			By("verifying the Available condition indicates creation failure")
+			updatedResource := &hcloudv1alpha1.HcloudNetwork{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
+			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
+			Expect(condition).NotTo(BeNil())
+			Expect(condition.Status).To(Equal(metav1.ConditionFalse))
+			Expect(condition.Reason).To(Equal("UpdateNetworkFailed"))
+
+			By("cleaning up the resource")
+			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
+		})
+	})
 
 	Context("Delete HcloudNetwork with finalizer", func() {
 		const namespace = "default"
@@ -574,6 +696,11 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				return &hcloudgo.Network{
 					ID:   12345,
 					Name: resourceName,
+					IPRange: &net.IPNet{
+						IP:   net.IPv4(10, 0, 0, 0),
+						Mask: net.IPv4Mask(255, 0, 0, 0),
+					},
+					Labels: map[string]string{"env": "test"},
 				}, nil, nil
 			}
 

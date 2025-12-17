@@ -8,12 +8,13 @@ import (
 
 // MockClient is a mock implementation of the Client interface for testing
 type MockClient struct {
-	GetNetworkByIdFunc   func(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error)
-	GetNetworkByNameFunc func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error)
-	CreateNetworkFunc    func(ctx context.Context, name string, ipRange string) (*hcloud.Network, *hcloud.Response, error)
-	UpdateNetworkFunc    func(ctx context.Context, network *hcloud.Network, opts hcloud.NetworkUpdateOpts) (*hcloud.Network, *hcloud.Response, error)
-	DeleteNetworkFunc    func(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error)
-	ListNetworksFunc     func(ctx context.Context) ([]*hcloud.Network, error)
+	GetNetworkByIdFunc      func(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error)
+	GetNetworkByNameFunc    func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error)
+	CreateNetworkFunc       func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error)
+	UpdateNetworkLabelsFunc func(ctx context.Context, network *hcloud.Network, labels map[string]string) (*hcloud.Network, *hcloud.Response, error)
+	UpdateNetworkCidrFunc   func(ctx context.Context, network *hcloud.Network, cidr string) (*hcloud.Network, *hcloud.Response, error)
+	DeleteNetworkFunc       func(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error)
+	ListNetworksFunc        func(ctx context.Context) ([]*hcloud.Network, error)
 }
 
 // GetNetworkById calls the mocked GetNetworkFunc
@@ -33,17 +34,25 @@ func (m *MockClient) GetNetworkByName(ctx context.Context, name string) (*hcloud
 }
 
 // CreateNetwork calls the mocked CreateNetworkFunc
-func (m *MockClient) CreateNetwork(ctx context.Context, name string, ipRange string) (*hcloud.Network, *hcloud.Response, error) {
+func (m *MockClient) CreateNetwork(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
 	if m.CreateNetworkFunc != nil {
-		return m.CreateNetworkFunc(ctx, name, ipRange)
+		return m.CreateNetworkFunc(ctx, name, ipRange, labels)
 	}
 	return nil, nil, nil
 }
 
-// UpdateNetwork calls the mocked UpdateNetworkFunc
-func (m *MockClient) UpdateNetwork(ctx context.Context, network *hcloud.Network, opts hcloud.NetworkUpdateOpts) (*hcloud.Network, *hcloud.Response, error) {
-	if m.UpdateNetworkFunc != nil {
-		return m.UpdateNetworkFunc(ctx, network, opts)
+// UpdateNetworkLabels calls the mocked UpdateNetworkLabelsFunc
+func (m *MockClient) UpdateNetworkLabels(ctx context.Context, network *hcloud.Network, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
+	if m.UpdateNetworkLabelsFunc != nil {
+		return m.UpdateNetworkLabelsFunc(ctx, network, labels)
+	}
+	return nil, nil, nil
+}
+
+// UpdateNetworkCidr calls the mocked UpdateNetworkCidrFunc
+func (m *MockClient) UpdateNetworkCidr(ctx context.Context, network *hcloud.Network, cidr string) (*hcloud.Network, *hcloud.Response, error) {
+	if m.UpdateNetworkCidrFunc != nil {
+		return m.UpdateNetworkCidrFunc(ctx, network, cidr)
 	}
 	return nil, nil, nil
 }
