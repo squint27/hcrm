@@ -98,6 +98,8 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			updatedResource := &hcloudv1alpha1.HcloudNetwork{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
 			Expect(updatedResource.Status.NetworkId).To(Equal(12345))
+			Expect(updatedResource.Status.IpRange).To(Equal(resource.Spec.IpRange))
+			Expect(updatedResource.Status.Labels).To(Equal(resource.Spec.Labels))
 			Expect(updatedResource.Status.ObservedGeneration).To(Equal(updatedResource.Generation))
 
 			By("verifying the Available condition was set")
@@ -249,16 +251,21 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
+			By("verifying the resource status was updated")
+			updatedResource := &hcloudv1alpha1.HcloudNetwork{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
+			Expect(updatedResource.Status.IpRange).To(Equal(resource.Spec.IpRange))
+			Expect(updatedResource.Status.Labels).To(Equal(resource.Spec.Labels))
+
 			By("verifying the Available condition is still true")
-			finalResource := &hcloudv1alpha1.HcloudNetwork{}
-			Expect(k8sClient.Get(ctx, typeNamespacedName, finalResource)).To(Succeed())
-			condition := meta.FindStatusCondition(finalResource.Status.Conditions, "Available")
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
+			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
 			Expect(condition).NotTo(BeNil())
 			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
 			Expect(condition.Reason).To(Equal("NetworkReady"))
 
 			By("cleaning up the resource")
-			Expect(k8sClient.Delete(ctx, finalResource)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
 		})
 
 		It("should successfully update network cidr", func() {
@@ -291,6 +298,10 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				ID:      54321,
 				Name:    resourceName,
 				IPRange: existingCidr,
+				Labels: map[string]string{
+					"oldKey": "oldVal",
+					"newKey": "newVal",
+				},
 			}
 
 			mockClient := &hcloud.MockClient{}
@@ -319,16 +330,21 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
+			By("verifying the resource status was updated")
+			updatedResource := &hcloudv1alpha1.HcloudNetwork{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
+			Expect(updatedResource.Status.IpRange).To(Equal(resource.Spec.IpRange))
+			Expect(updatedResource.Status.Labels).To(Equal(resource.Spec.Labels))
+
 			By("verifying the Available condition is still true")
-			finalResource := &hcloudv1alpha1.HcloudNetwork{}
-			Expect(k8sClient.Get(ctx, typeNamespacedName, finalResource)).To(Succeed())
-			condition := meta.FindStatusCondition(finalResource.Status.Conditions, "Available")
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
+			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
 			Expect(condition).NotTo(BeNil())
 			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
 			Expect(condition.Reason).To(Equal("NetworkReady"))
 
 			By("cleaning up the resource")
-			Expect(k8sClient.Delete(ctx, finalResource)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
 		})
 
 		It("should handle Hetzner Cloud API errors gracefully", func() {
@@ -395,9 +411,75 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			By("cleaning up the resource")
 			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
 		})
-	})
 
-	Context("Delete HcloudNetwork with finalizer", func() {
+		It("should not update network when sync policy is read-only", func() {
+			const resourceName = "test-readonly-network"
+			typeNamespacedName := types.NamespacedName{
+				Name:      resourceName,
+				Namespace: namespace,
+			}
+
+			_, cidr, _ := net.ParseCIDR("10.0.0.0/8")
+
+			By("creating the HcloudNetwork resource with read-only sync policy")
+			resource := &hcloudv1alpha1.HcloudNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName,
+					Namespace: namespace,
+					Annotations: map[string]string{
+						syncPolicy: "read-only",
+					},
+				},
+				Spec: hcloudv1alpha1.HcloudNetworkSpec{
+					Name:    resourceName,
+					IpRange: "10.0.0.0/16",
+					Labels: map[string]string{
+						"my-key": "my-val",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+
+			mockClient := &hcloud.MockClient{}
+			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+				return &hcloudgo.Network{
+					ID:      12345,
+					Name:    resourceName,
+					IPRange: cidr,
+					Labels: map[string]string{
+						"my-key":     "my-val",
+						"second-key": "second-value",
+					},
+				}, nil, nil
+			}
+
+			client := hcloud.NetworkClient(mockClient)
+
+			By("reconciling the resource")
+			reconciler := &HcloudNetworkReconciler{
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				NetworkClient: client,
+			}
+
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying the network was not updated")
+			finalResource := &hcloudv1alpha1.HcloudNetwork{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, finalResource)).To(Succeed())
+			Expect(finalResource.Status.NetworkId).To(Equal(12345))
+			Expect(finalResource.Status.IpRange).NotTo(Equal(resource.Spec.IpRange))
+			Expect(finalResource.Status.Labels).NotTo(Equal(resource.Spec.Labels))
+
+			By("cleaning up the resource")
+			Expect(k8sClient.Delete(ctx, finalResource)).To(Succeed())
+		})
+
+	})
+	Context("Delete HcloudNetwork", func() {
 		const namespace = "default"
 
 		ctx := context.Background()
@@ -722,6 +804,8 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			updatedResource := &hcloudv1alpha1.HcloudNetwork{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, updatedResource)).To(Succeed())
 			Expect(updatedResource.Status.NetworkId).To(Equal(12345))
+			Expect(updatedResource.Status.IpRange).To(Equal(resource.Spec.IpRange))
+			Expect(updatedResource.Status.Labels).To(Equal(resource.Spec.Labels))
 			Expect(updatedResource.Status.ObservedGeneration).To(Equal(updatedResource.Generation))
 
 			By("verifying the Available condition was set")
@@ -740,5 +824,4 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
 		})
 	})
-
 })

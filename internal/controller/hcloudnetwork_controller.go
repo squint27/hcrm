@@ -132,17 +132,6 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	// Add finalizer if not present
-	if !controllerutil.ContainsFinalizer(&hcloudNetwork, finalizerName) {
-		controllerutil.AddFinalizer(&hcloudNetwork, finalizerName)
-		if err := r.Update(ctx, &hcloudNetwork); err != nil {
-			log.Error(err, "Failed to add finalizer", "name", hcloudNetwork.Name)
-			return ctrl.Result{}, err
-		}
-
-		log.Info("Finalizer added", "name", hcloudNetwork.Name)
-	}
-
 	// Initialize annotations if not present
 	if hcloudNetwork.Annotations == nil {
 		hcloudNetwork.Annotations = make(map[string]string)
@@ -159,6 +148,17 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		log.Info("Sync policy annotation added", "name", hcloudNetwork.Name)
 
+	}
+
+	// Add finalizer if not present and sync policy supports it
+	if !controllerutil.ContainsFinalizer(&hcloudNetwork, finalizerName) && hcloudNetwork.Annotations[syncPolicy] == "manage" {
+		controllerutil.AddFinalizer(&hcloudNetwork, finalizerName)
+		if err := r.Update(ctx, &hcloudNetwork); err != nil {
+			log.Error(err, "Failed to add finalizer", "name", hcloudNetwork.Name)
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Finalizer added", "name", hcloudNetwork.Name)
 	}
 
 	// Adopt existing network if it exists
@@ -180,59 +180,64 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if network != nil {
 		log.Info("Found existing network in Hetzner Cloud", "networkId", network.ID)
 
-		// Evaluate if the network spec matches the existing network
-		needsLabelsUpdate := false
-		needsCidrUpdate := false
-		if hcloudNetwork.Spec.IpRange != network.IPRange.String() {
-			log.Info("Network IP range differs, updating", "current", network.IPRange, "desired", hcloudNetwork.Spec.IpRange)
-			needsCidrUpdate = true
-		} else if hcloudNetwork.Spec.Labels != nil && !equality.Semantic.DeepEqual(hcloudNetwork.Spec.Labels, network.Labels) {
-			log.Info("Network labels differ, updating", "current", network.Labels, "desired", hcloudNetwork.Spec.Labels)
-			needsLabelsUpdate = true
-		}
-
-		if needsLabelsUpdate {
-			_, response, err := r.NetworkClient.UpdateNetworkLabels(ctx, network, hcloudNetwork.Spec.Labels)
-			if err != nil {
-				log.Error(err, "Failed to update network labels in Hetzner Cloud", "networkId", network.ID)
-				meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
-					Type:               "Available",
-					Status:             metav1.ConditionFalse,
-					ObservedGeneration: hcloudNetwork.Generation,
-					Reason:             "UpdateNetworkFailed",
-					Message:            fmt.Sprintf("Failed to update network in Hetzner Cloud: %v. %v", err, response),
-				})
-
-				return ctrl.Result{}, err
-			}
-		} else if needsCidrUpdate {
-			_, response, err = r.NetworkClient.UpdateNetworkCidr(ctx, network, hcloudNetwork.Spec.IpRange)
-			if err != nil {
-				log.Error(err, "Failed to update network CIDR in Hetzner Cloud", "networkId", network.ID)
-				meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
-					Type:               "Available",
-					Status:             metav1.ConditionFalse,
-					ObservedGeneration: hcloudNetwork.Generation,
-					Reason:             "UpdateNetworkFailed",
-					Message:            fmt.Sprintf("Failed to update network in Hetzner Cloud: %v. %v", err, response),
-				})
-
-				return ctrl.Result{}, err
+		// Update the existing network if sync policy allows it
+		if hcloudNetwork.Annotations[syncPolicy] != "read-only" {
+			// Evaluate if the network spec matches the existing network
+			needsLabelsUpdate := false
+			needsCidrUpdate := false
+			if hcloudNetwork.Spec.IpRange != network.IPRange.String() {
+				log.Info("Network IP range differs, updating", "current", network.IPRange, "desired", hcloudNetwork.Spec.IpRange)
+				needsCidrUpdate = true
+			} else if hcloudNetwork.Spec.Labels != nil && !equality.Semantic.DeepEqual(hcloudNetwork.Spec.Labels, network.Labels) {
+				log.Info("Network labels differ, updating", "current", network.Labels, "desired", hcloudNetwork.Spec.Labels)
+				needsLabelsUpdate = true
 			}
 
-			log.Info("Successfully updated network in Hetzner Cloud", "networkId", network.ID)
-		} else {
-			log.Info("No updates required for existing network", "networkId", network.ID)
+			if needsLabelsUpdate {
+				_, response, err := r.NetworkClient.UpdateNetworkLabels(ctx, network, hcloudNetwork.Spec.Labels)
+				if err != nil {
+					log.Error(err, "Failed to update network labels in Hetzner Cloud", "networkId", network.ID)
+					meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+						Type:               "Available",
+						Status:             metav1.ConditionFalse,
+						ObservedGeneration: hcloudNetwork.Generation,
+						Reason:             "UpdateNetworkFailed",
+						Message:            fmt.Sprintf("Failed to update network in Hetzner Cloud: %v. %v", err, response),
+					})
+
+					return ctrl.Result{}, err
+				}
+			} else if needsCidrUpdate {
+				_, response, err = r.NetworkClient.UpdateNetworkCidr(ctx, network, hcloudNetwork.Spec.IpRange)
+				if err != nil {
+					log.Error(err, "Failed to update network CIDR in Hetzner Cloud", "networkId", network.ID)
+					meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
+						Type:               "Available",
+						Status:             metav1.ConditionFalse,
+						ObservedGeneration: hcloudNetwork.Generation,
+						Reason:             "UpdateNetworkFailed",
+						Message:            fmt.Sprintf("Failed to update network in Hetzner Cloud: %v. %v", err, response),
+					})
+
+					return ctrl.Result{}, err
+				}
+
+				log.Info("Successfully updated network in Hetzner Cloud", "networkId", network.ID)
+			} else {
+				log.Info("No updates required for existing network", "networkId", network.ID)
+			}
 		}
 
-		// Update the resource status with the network ID and conditions
+		// Update the resource status with the network details and conditions
 		hcloudNetwork.Status.NetworkId = int(network.ID)
+		hcloudNetwork.Status.IpRange = network.IPRange.String()
+		hcloudNetwork.Status.Labels = network.Labels
 		meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
 			Type:               "Available",
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: hcloudNetwork.Generation,
 			Reason:             "NetworkReady",
-			Message:            fmt.Sprintf("Network ID %d updated successfully", network.ID),
+			Message:            fmt.Sprintf("Network ID %d reconciled successfully", network.ID),
 		})
 		hcloudNetwork.Status.ObservedGeneration = hcloudNetwork.Generation
 
@@ -256,6 +261,8 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Info("Successfully created network in Hetzner Cloud", "networkId", network.ID)
 
 		hcloudNetwork.Status.NetworkId = int(network.ID)
+		hcloudNetwork.Status.IpRange = network.IPRange.String()
+		hcloudNetwork.Status.Labels = network.Labels
 		meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
 			Type:               "Available",
 			Status:             metav1.ConditionTrue,

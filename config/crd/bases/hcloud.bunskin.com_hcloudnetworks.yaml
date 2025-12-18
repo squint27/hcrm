@@ -140,6 +140,12 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              ipRange:
+                type: string
+              labels:
+                additionalProperties:
+                  type: string
+                type: object
               networkId:
                 type: integer
               observedGeneration:

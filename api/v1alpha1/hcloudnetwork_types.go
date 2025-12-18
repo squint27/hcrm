@@ -50,6 +50,10 @@ type HcloudNetworkStatus struct {
 
 	NetworkId int `json:"networkId,omitempty"`
 
+	IpRange string `json:"ipRange,omitempty"`
+
+	Labels map[string]string `json:"labels,omitempty"`
+
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// conditions represent the current state of the HcloudNetwork resource.
