@@ -106,7 +106,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
 			Expect(condition).NotTo(BeNil())
 			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
-			Expect(condition.Reason).To(Equal("NetworkCreated"))
+			Expect(condition.Reason).To(Equal("Ready"))
 
 			By("verifying finalizer was added")
 			Expect(updatedResource.ObjectMeta.Finalizers).To(ContainElement(finalizerName))
@@ -179,7 +179,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
 			Expect(condition).NotTo(BeNil())
 			Expect(condition.Status).To(Equal(metav1.ConditionFalse))
-			Expect(condition.Reason).To(Equal("CreateNetworkFailed"))
+			Expect(condition.Reason).To(Equal("Failed"))
 
 			By("cleaning up the resource")
 			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
@@ -262,7 +262,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
 			Expect(condition).NotTo(BeNil())
 			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
-			Expect(condition.Reason).To(Equal("NetworkReady"))
+			Expect(condition.Reason).To(Equal("Ready"))
 
 			By("cleaning up the resource")
 			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
@@ -341,7 +341,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
 			Expect(condition).NotTo(BeNil())
 			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
-			Expect(condition.Reason).To(Equal("NetworkReady"))
+			Expect(condition.Reason).To(Equal("Ready"))
 
 			By("cleaning up the resource")
 			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
@@ -406,7 +406,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
 			Expect(condition).NotTo(BeNil())
 			Expect(condition.Status).To(Equal(metav1.ConditionFalse))
-			Expect(condition.Reason).To(Equal("UpdateNetworkFailed"))
+			Expect(condition.Reason).To(Equal("Failed"))
 
 			By("cleaning up the resource")
 			Expect(k8sClient.Delete(ctx, updatedResource)).To(Succeed())
@@ -812,7 +812,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			condition := meta.FindStatusCondition(updatedResource.Status.Conditions, "Available")
 			Expect(condition).NotTo(BeNil())
 			Expect(condition.Status).To(Equal(metav1.ConditionTrue))
-			Expect(condition.Reason).To(Equal("NetworkReady"))
+			Expect(condition.Reason).To(Equal("Ready"))
 
 			By("verifying finalizer was added")
 			Expect(updatedResource.ObjectMeta.Finalizers).To(ContainElement(finalizerName))
