@@ -87,6 +87,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -166,6 +167,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -244,6 +246,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -323,6 +326,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -393,6 +397,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -460,6 +465,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -535,6 +541,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -599,6 +606,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -666,6 +674,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -793,6 +802,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Client:        k8sClient,
 				Scheme:        k8sClient.Scheme(),
 				NetworkClient: client,
+				Recorder:      recorder,
 			}
 
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{

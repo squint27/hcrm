@@ -198,6 +198,7 @@ func main() {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		NetworkClient: client,
+		Recorder:      mgr.GetEventRecorderFor("hcloudnetwork-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HcloudNetwork")
 		os.Exit(1)

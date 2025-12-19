@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -46,11 +47,13 @@ type HcloudNetworkReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	NetworkClient hcloud.NetworkClient
+	Recorder      record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=hcloud.bunskin.com,resources=hcloudnetworks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=hcloud.bunskin.com,resources=hcloudnetworks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=hcloud.bunskin.com,resources=hcloudnetworks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
 func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.Log.WithName("hcloudnetwork-controller")
@@ -118,6 +121,8 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 					}
 
+					r.Recorder.Eventf(&hcloudNetwork, "Warning", "DeletionFailed", "Failed to get network %d for deletion", hcloudNetwork.Status.NetworkId)
+
 					return ctrl.Result{}, err
 				}
 
@@ -138,10 +143,13 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 							log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 						}
 
+						r.Recorder.Eventf(&hcloudNetwork, "Warning", "Failed to delete network %s from Hetzner cloud", hcloudNetwork.Spec.Name)
+
 						return ctrl.Result{}, err
 					}
 
 					log.Info("Successfully deleted Hetzner Cloud network", "networkId", hcloudNetwork.Status.NetworkId)
+					r.Recorder.Eventf(&hcloudNetwork, "Normal", "Deleted", "HcloudNetwork %s deleted successfully", hcloudNetwork.Spec.Name)
 				} else {
 					log.Info("Network not found in Hetzner Cloud, nothing to delete", "networkId", hcloudNetwork.Status.NetworkId)
 				}
@@ -200,6 +208,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
 			log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 		}
+		r.Recorder.Eventf(&hcloudNetwork, "Warning", "UpdateFailed", "Failed to get network %s from Hetzner cloud", hcloudNetwork.Spec.Name)
 
 		return ctrl.Result{}, err
 	}
@@ -235,6 +244,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
 						log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 					}
+					r.Recorder.Eventf(&hcloudNetwork, "Warning", "UpdateFailed", "Failed to update network %s in Hetzner cloud", hcloudNetwork.Spec.Name)
 
 					return ctrl.Result{}, err
 				}
@@ -254,6 +264,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
 						log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 					}
+					r.Recorder.Eventf(&hcloudNetwork, "Warning", "UpdateFailed", "Failed to update network %s in Hetzner cloud", hcloudNetwork.Spec.Name)
 
 					return ctrl.Result{}, err
 				}
@@ -286,6 +297,8 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, err
 		}
 
+		r.Recorder.Eventf(&hcloudNetwork, "Normal", "Ready", "HcloudNetwork updated %d", hcloudNetwork.Status.NetworkId)
+
 	} else if hcloudNetwork.Annotations[syncPolicy] != "read-only" {
 		log.Info("Network not found in Hetzner Cloud, creating new network", "name", hcloudNetwork.Spec.Name)
 
@@ -302,6 +315,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			if err := r.Status().Update(ctx, &hcloudNetwork); err != nil {
 				log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 			}
+			r.Recorder.Eventf(&hcloudNetwork, "Warning", "CreateFailed", "Failed to create network %s in Hetzner cloud", hcloudNetwork.Spec.Name)
 
 			return ctrl.Result{}, err
 		}
@@ -324,6 +338,8 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 			return ctrl.Result{}, err
 		}
+
+		r.Recorder.Eventf(&hcloudNetwork, "Normal", "Ready", "HcloudNetwork created %d", hcloudNetwork.Status.NetworkId)
 	} else {
 		log.Info("Network not found in Hetzner Cloud and sync policy is read-only; skipping creation", "name", hcloudNetwork.Spec.Name)
 		meta.SetStatusCondition(&hcloudNetwork.Status.Conditions, metav1.Condition{
@@ -337,6 +353,7 @@ func (r *HcloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Failed to update HcloudNetwork status", "name", hcloudNetwork.Name)
 			return ctrl.Result{}, err
 		}
+		r.Recorder.Eventf(&hcloudNetwork, "Warning", "Failed", "Network %s not found in Hetzner cloud", hcloudNetwork.Spec.Name)
 	}
 
 	log.Info("HcloudNetwork resource reconciled successfully", "name", hcloudNetwork.Name)
