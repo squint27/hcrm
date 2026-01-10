@@ -1,20 +1,16 @@
+{{- if .Values.rbacHelpers.enable }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-    name: hcrm-manager-role
+    labels:
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+        app.kubernetes.io/name: hcrm
+    name: hcrm-hclouddnszone-editor-role
 rules:
-    - apiGroups:
-        - ""
-      resources:
-        - events
-      verbs:
-        - create
-        - patch
     - apiGroups:
         - hcloud.bunskin.com
       resources:
         - hclouddnszones
-        - hcloudnetworks
       verbs:
         - create
         - delete
@@ -26,16 +22,7 @@ rules:
     - apiGroups:
         - hcloud.bunskin.com
       resources:
-        - hclouddnszones/finalizers
-        - hcloudnetworks/finalizers
-      verbs:
-        - update
-    - apiGroups:
-        - hcloud.bunskin.com
-      resources:
         - hclouddnszones/status
-        - hcloudnetworks/status
       verbs:
         - get
-        - patch
-        - update
+{{- end }}

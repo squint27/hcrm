@@ -1,0 +1,13 @@
+apiVersion: hcloud.bunskin.com/v1alpha1
+kind: HcloudDnsZone
+metadata:
+  labels:
+    app.kubernetes.io/name: hcrm
+    app.kubernetes.io/managed-by: kustomize
+  name: hclouddnszone-sample
+spec:
+  name: example.com
+  mode: Primary
+  ttl: 3600
+  labels:
+    test-key: test-value

@@ -6,8 +6,8 @@ import (
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
-// MockClient is a mock implementation of the Client interface for testing
-type MockClient struct {
+// MockNetworkClient is a mock implementation of the Client interface for testing
+type MockNetworkClient struct {
 	GetNetworkByIdFunc      func(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error)
 	GetNetworkByNameFunc    func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error)
 	CreateNetworkFunc       func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error)
@@ -18,7 +18,7 @@ type MockClient struct {
 }
 
 // GetNetworkById calls the mocked GetNetworkFunc
-func (m *MockClient) GetNetworkById(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error) {
+func (m *MockNetworkClient) GetNetworkById(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error) {
 	if m.GetNetworkByIdFunc != nil {
 		return m.GetNetworkByIdFunc(ctx, id)
 	}
@@ -26,7 +26,7 @@ func (m *MockClient) GetNetworkById(ctx context.Context, id int64) (*hcloud.Netw
 }
 
 // GetNetworkByName calls the mocked GetNetworkByNameFunc
-func (m *MockClient) GetNetworkByName(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error) {
+func (m *MockNetworkClient) GetNetworkByName(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error) {
 	if m.GetNetworkByNameFunc != nil {
 		return m.GetNetworkByNameFunc(ctx, name)
 	}
@@ -34,7 +34,7 @@ func (m *MockClient) GetNetworkByName(ctx context.Context, name string) (*hcloud
 }
 
 // CreateNetwork calls the mocked CreateNetworkFunc
-func (m *MockClient) CreateNetwork(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
+func (m *MockNetworkClient) CreateNetwork(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
 	if m.CreateNetworkFunc != nil {
 		return m.CreateNetworkFunc(ctx, name, ipRange, labels)
 	}
@@ -42,7 +42,7 @@ func (m *MockClient) CreateNetwork(ctx context.Context, name string, ipRange str
 }
 
 // UpdateNetworkLabels calls the mocked UpdateNetworkLabelsFunc
-func (m *MockClient) UpdateNetworkLabels(ctx context.Context, network *hcloud.Network, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
+func (m *MockNetworkClient) UpdateNetworkLabels(ctx context.Context, network *hcloud.Network, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
 	if m.UpdateNetworkLabelsFunc != nil {
 		return m.UpdateNetworkLabelsFunc(ctx, network, labels)
 	}
@@ -50,7 +50,7 @@ func (m *MockClient) UpdateNetworkLabels(ctx context.Context, network *hcloud.Ne
 }
 
 // UpdateNetworkCidr calls the mocked UpdateNetworkCidrFunc
-func (m *MockClient) UpdateNetworkCidr(ctx context.Context, network *hcloud.Network, cidr string) (*hcloud.Network, *hcloud.Response, error) {
+func (m *MockNetworkClient) UpdateNetworkCidr(ctx context.Context, network *hcloud.Network, cidr string) (*hcloud.Network, *hcloud.Response, error) {
 	if m.UpdateNetworkCidrFunc != nil {
 		return m.UpdateNetworkCidrFunc(ctx, network, cidr)
 	}
@@ -58,7 +58,7 @@ func (m *MockClient) UpdateNetworkCidr(ctx context.Context, network *hcloud.Netw
 }
 
 // DeleteNetwork calls the mocked DeleteNetworkFunc
-func (m *MockClient) DeleteNetwork(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error) {
+func (m *MockNetworkClient) DeleteNetwork(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error) {
 	if m.DeleteNetworkFunc != nil {
 		return m.DeleteNetworkFunc(ctx, network)
 	}
@@ -66,7 +66,7 @@ func (m *MockClient) DeleteNetwork(ctx context.Context, network *hcloud.Network)
 }
 
 // ListNetworks calls the mocked ListNetworksFunc
-func (m *MockClient) ListNetworks(ctx context.Context) ([]*hcloud.Network, error) {
+func (m *MockNetworkClient) ListNetworks(ctx context.Context) ([]*hcloud.Network, error) {
 	if m.ListNetworksFunc != nil {
 		return m.ListNetworksFunc(ctx)
 	}

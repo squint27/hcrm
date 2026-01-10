@@ -14,6 +14,7 @@ rules:
 - apiGroups:
   - hcloud.bunskin.com
   resources:
+  - hclouddnszones
   - hcloudnetworks
   verbs:
   - create
@@ -26,12 +27,14 @@ rules:
 - apiGroups:
   - hcloud.bunskin.com
   resources:
+  - hclouddnszones/finalizers
   - hcloudnetworks/finalizers
   verbs:
   - update
 - apiGroups:
   - hcloud.bunskin.com
   resources:
+  - hclouddnszones/status
   - hcloudnetworks/status
   verbs:
   - get

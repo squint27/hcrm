@@ -11,18 +11,18 @@ import (
 )
 
 var _ = Describe("NetworkManager", func() {
-	var mockClient *MockClient
+	var mockNetworkClient *MockNetworkClient
 	var nc NetworkClient
 
 	BeforeEach(func() {
-		mockClient = &MockClient{}
-		nc = NetworkClient(mockClient)
+		mockNetworkClient = &MockNetworkClient{}
+		nc = NetworkClient(mockNetworkClient)
 	})
 
 	Describe("GetNetworkById", func() {
 		When("network exists", func() {
 			BeforeEach(func() {
-				mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error) {
 					return &hcloud.Network{ID: 123, Name: "test-network"}, nil, nil
 				}
 			})
@@ -38,7 +38,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("network is not found", func() {
 			BeforeEach(func() {
-				mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloud.Network, *hcloud.Response, error) {
 					return nil, nil, errors.New("network not found")
 				}
 			})
@@ -54,7 +54,7 @@ var _ = Describe("NetworkManager", func() {
 	Describe("CreateNetwork", func() {
 		When("valid network options are provided", func() {
 			BeforeEach(func() {
-				mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
 					return &hcloud.Network{ID: 1, Name: name, Labels: labels}, nil, nil
 				}
 			})
@@ -70,7 +70,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("API returns an error", func() {
 			BeforeEach(func() {
-				mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
 					return nil, nil, errors.New("api error")
 				}
 			})
@@ -86,7 +86,7 @@ var _ = Describe("NetworkManager", func() {
 	Describe("UpdateNetworkLabels", func() {
 		When("valid update options are provided", func() {
 			BeforeEach(func() {
-				mockClient.UpdateNetworkLabelsFunc = func(ctx context.Context, network *hcloud.Network, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.UpdateNetworkLabelsFunc = func(ctx context.Context, network *hcloud.Network, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
 					return &hcloud.Network{ID: network.ID, Name: network.Name, Labels: labels}, nil, nil
 				}
 			})
@@ -107,7 +107,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("API returns an error", func() {
 			BeforeEach(func() {
-				mockClient.UpdateNetworkLabelsFunc = func(ctx context.Context, network *hcloud.Network, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.UpdateNetworkLabelsFunc = func(ctx context.Context, network *hcloud.Network, labels map[string]string) (*hcloud.Network, *hcloud.Response, error) {
 					return nil, nil, errors.New("update failed")
 				}
 			})
@@ -134,7 +134,7 @@ var _ = Describe("NetworkManager", func() {
 				_, expectedCidr, err := net.ParseCIDR("10.0.0.0/8")
 				Expect(err).NotTo(HaveOccurred())
 
-				mockClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloud.Network, cidr string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloud.Network, cidr string) (*hcloud.Network, *hcloud.Response, error) {
 					return &hcloud.Network{
 						ID:      network.ID,
 						Name:    network.Name,
@@ -161,7 +161,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("API returns an error", func() {
 			BeforeEach(func() {
-				mockClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloud.Network, cidr string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloud.Network, cidr string) (*hcloud.Network, *hcloud.Response, error) {
 					return nil, nil, errors.New("update failed")
 				}
 			})
@@ -187,7 +187,7 @@ var _ = Describe("NetworkManager", func() {
 	Describe("DeleteNetwork", func() {
 		When("network exists", func() {
 			BeforeEach(func() {
-				mockClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error) {
+				mockNetworkClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error) {
 					return nil, nil
 				}
 			})
@@ -201,7 +201,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("API returns an error", func() {
 			BeforeEach(func() {
-				mockClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error) {
+				mockNetworkClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloud.Network) (*hcloud.Response, error) {
 					return nil, errors.New("delete failed")
 				}
 			})
@@ -218,7 +218,7 @@ var _ = Describe("NetworkManager", func() {
 	Describe("ListNetworks", func() {
 		When("networks exist", func() {
 			BeforeEach(func() {
-				mockClient.ListNetworksFunc = func(ctx context.Context) ([]*hcloud.Network, error) {
+				mockNetworkClient.ListNetworksFunc = func(ctx context.Context) ([]*hcloud.Network, error) {
 					return []*hcloud.Network{
 						{ID: 1, Name: "network-1"},
 						{ID: 2, Name: "network-2"},
@@ -237,7 +237,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("no networks exist", func() {
 			BeforeEach(func() {
-				mockClient.ListNetworksFunc = func(ctx context.Context) ([]*hcloud.Network, error) {
+				mockNetworkClient.ListNetworksFunc = func(ctx context.Context) ([]*hcloud.Network, error) {
 					return []*hcloud.Network{}, nil
 				}
 			})
@@ -251,7 +251,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("API returns an error", func() {
 			BeforeEach(func() {
-				mockClient.ListNetworksFunc = func(ctx context.Context) ([]*hcloud.Network, error) {
+				mockNetworkClient.ListNetworksFunc = func(ctx context.Context) ([]*hcloud.Network, error) {
 					return nil, errors.New("list failed")
 				}
 			})
@@ -267,7 +267,7 @@ var _ = Describe("NetworkManager", func() {
 	Describe("GetNetworkByName", func() {
 		When("network exists with given name", func() {
 			BeforeEach(func() {
-				mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error) {
 					return &hcloud.Network{ID: 123, Name: name}, nil, nil
 				}
 			})
@@ -282,7 +282,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("network is not found", func() {
 			BeforeEach(func() {
-				mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error) {
 					return nil, nil, errors.New("network not found")
 				}
 			})
@@ -296,7 +296,7 @@ var _ = Describe("NetworkManager", func() {
 
 		When("API returns an error", func() {
 			BeforeEach(func() {
-				mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error) {
+				mockNetworkClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloud.Network, *hcloud.Response, error) {
 					return nil, nil, errors.New("api error")
 				}
 			})

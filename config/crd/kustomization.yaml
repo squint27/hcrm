@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/hcloud.bunskin.com_hcloudnetworks.yaml
+- bases/hcloud.bunskin.com_hclouddnszones.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

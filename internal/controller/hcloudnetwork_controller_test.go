@@ -65,7 +65,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
 			By("creating a mock HCloud manager")
-			mockClient := &hcloud.MockClient{}
+			MockNetworkClient := &hcloud.MockNetworkClient{}
 			createdNetwork := &hcloudgo.Network{
 				ID:   12345,
 				Name: "test-network-create",
@@ -76,11 +76,11 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Labels: map[string]string{"env": "test"},
 			}
 
-			mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return createdNetwork, nil, nil
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
@@ -155,12 +155,12 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockClient := &hcloud.MockClient{}
-			mockClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient := &hcloud.MockNetworkClient{}
+			MockNetworkClient.CreateNetworkFunc = func(ctx context.Context, name string, ipRange string, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return nil, nil, fmt.Errorf("API error: rate limit exceeded")
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
@@ -227,19 +227,19 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				Labels: map[string]string{"oldKey": "oldVal"},
 			}
 
-			mockClient := &hcloud.MockClient{}
-			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient := &hcloud.MockNetworkClient{}
+			MockNetworkClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return existingNetwork, nil, nil
 			}
-			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return existingNetwork, nil, nil
 			}
-			mockClient.UpdateNetworkLabelsFunc = func(ctx context.Context, network *hcloudgo.Network, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient.UpdateNetworkLabelsFunc = func(ctx context.Context, network *hcloudgo.Network, labels map[string]string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				existingNetwork.Labels = labels
 				return existingNetwork, nil, nil
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
@@ -307,19 +307,19 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				},
 			}
 
-			mockClient := &hcloud.MockClient{}
-			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient := &hcloud.MockNetworkClient{}
+			MockNetworkClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return existingNetwork, nil, nil
 			}
-			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return existingNetwork, nil, nil
 			}
-			mockClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloudgo.Network, cidr string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloudgo.Network, cidr string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				existingNetwork.IPRange = newCidr
 				return existingNetwork, nil, nil
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
@@ -379,18 +379,18 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				IPRange: existingCidr,
 			}
 
-			mockClient := &hcloud.MockClient{}
-			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient := &hcloud.MockNetworkClient{}
+			MockNetworkClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return existingNetwork, nil, nil
 			}
-			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return existingNetwork, nil, nil
 			}
-			mockClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloudgo.Network, cidr string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient.UpdateNetworkCidrFunc = func(ctx context.Context, network *hcloudgo.Network, cidr string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return nil, nil, fmt.Errorf("API error: cannot update network CIDR")
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
@@ -445,8 +445,8 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockClient := &hcloud.MockClient{}
-			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient := &hcloud.MockNetworkClient{}
+			MockNetworkClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return &hcloudgo.Network{
 					ID:      12345,
 					Name:    resourceName,
@@ -458,7 +458,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				}, nil, nil
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
@@ -511,18 +511,18 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockClient := &hcloud.MockClient{}
-			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient := &hcloud.MockNetworkClient{}
+			MockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return &hcloudgo.Network{
 					ID:   99999,
 					Name: "test-network-delete",
 				}, nil, nil
 			}
-			mockClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloudgo.Network) (*hcloudgo.Response, error) {
+			MockNetworkClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloudgo.Network) (*hcloudgo.Response, error) {
 				return nil, nil
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("setting network ID and finalizer")
 			resource.Status.NetworkId = 99999
@@ -576,18 +576,18 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockClient := &hcloud.MockClient{}
-			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient := &hcloud.MockNetworkClient{}
+			MockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return &hcloudgo.Network{
 					ID:   99999,
 					Name: "test-network-delete",
 				}, nil, nil
 			}
-			mockClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloudgo.Network) (*hcloudgo.Response, error) {
+			MockNetworkClient.DeleteNetworkFunc = func(ctx context.Context, network *hcloudgo.Network) (*hcloudgo.Response, error) {
 				return nil, fmt.Errorf("API error: network in use")
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("setting network ID and finalizer")
 			resource.Status.NetworkId = 99999
@@ -650,12 +650,12 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-			mockClient := &hcloud.MockClient{}
-			mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient := &hcloud.MockNetworkClient{}
+			MockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return nil, nil, nil
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("setting network ID and finalizer")
 			resource.Status.NetworkId = 99999
@@ -716,12 +716,12 @@ var _ = Describe("HcloudNetwork Controller", func() {
 	// 		}
 	// 		Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
-	// 		mockClient := &hcloud.MockClient{}
-	// 		mockClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
+	// 		MockNetworkClient := &hcloud.MockNetworkClient{}
+	// 		MockNetworkClient.GetNetworkByIdFunc = func(ctx context.Context, id int64) (*hcloudgo.Network, *hcloudgo.Response, error) {
 	// 			return nil, nil, fmt.Errorf("API error: network not found")
 	// 		}
 
-	// 		client := hcloud.NetworkClient(mockClient)
+	// 		client := hcloud.NetworkClient(MockNetworkClient)
 
 	// 		By("setting network ID")
 	// 		resource.Status.NetworkId = 12345
@@ -781,9 +781,9 @@ var _ = Describe("HcloudNetwork Controller", func() {
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
 			By("creating a mock HCloud manager")
-			mockClient := &hcloud.MockClient{}
+			MockNetworkClient := &hcloud.MockNetworkClient{}
 
-			mockClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
+			MockNetworkClient.GetNetworkByNameFunc = func(ctx context.Context, name string) (*hcloudgo.Network, *hcloudgo.Response, error) {
 				return &hcloudgo.Network{
 					ID:   12345,
 					Name: resourceName,
@@ -795,7 +795,7 @@ var _ = Describe("HcloudNetwork Controller", func() {
 				}, nil, nil
 			}
 
-			client := hcloud.NetworkClient(mockClient)
+			client := hcloud.NetworkClient(MockNetworkClient)
 
 			By("reconciling the resource")
 			reconciler := &HcloudNetworkReconciler{
